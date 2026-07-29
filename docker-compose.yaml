@@ -1,36 +1,18 @@
 version: "3.8"
 
 services:
-  telegram-api:
-    image: aiogram/telegram-bot-api:latest
-    restart: unless-stopped
-    environment:
-      TELEGRAM_API_ID: ${API_ID}
-      TELEGRAM_API_HASH: ${API_HASH}
-      TELEGRAM_LOCAL: 1
-    volumes:
-      - telegram-bot-api-data:/var/lib/telegram-bot-api
-    # Coolify ke internal network me ye "telegram-api" naam se hi
-    # reachable hoga — port publish karne ki zaroorat nahi.
-
   unzip-bot:
     build: .
     restart: unless-stopped
-    depends_on:
-      - telegram-api
     environment:
       API_ID: ${API_ID}
       API_HASH: ${API_HASH}
       BOT_TOKEN: ${BOT_TOKEN}
       CHANNEL_ID: ${CHANNEL_ID}
-      LOCAL_SERVER: "true"
-      # service name hi hostname hai compose network me — localhost nahi!
-      LOCAL_API_URL: http://telegram-api:8081
     volumes:
       - bot-downloads:/app/downloads
       - bot-extracted:/app/extracted
 
 volumes:
-  telegram-bot-api-data:
   bot-downloads:
   bot-extracted:
