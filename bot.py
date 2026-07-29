@@ -33,11 +33,10 @@ API_ID = int(os.environ.get("API_ID", "0"))          # my.telegram.org se
 API_HASH = os.environ.get("API_HASH", "")             # my.telegram.org se
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")           # @BotFather se
 
-# Local Bot API server ka address (2GB support ke liye zaroori)
-# Agar local server nahi chala rahe to LOCAL_SERVER = False rakhein
-# (tab 20MB/50MB ki default limit lagegi).
-LOCAL_SERVER = os.environ.get("LOCAL_SERVER", "true").lower() == "true"
-LOCAL_API_URL = os.environ.get("LOCAL_API_URL", "http://localhost:8081")
+# NOTE: Pyrogram MTProto se seedha Telegram ke servers se connect hota hai
+# (official HTTP Bot API server ke through nahi), isliye 20MB/50MB wali
+# limit yaha lagti hi nahi — 2GB tak ki files bina kisi local server ke
+# already handle ho jati hain.
 
 # Target channel jaha extracted files bhejni hain
 # Channel ka numeric ID (e.g. -1001234567890) ya @username
@@ -51,18 +50,12 @@ logger = logging.getLogger("unzip-bot")
 
 # ---------------------- CLIENT ----------------------
 
-client_kwargs = dict(
+app = Client(
     name="unzip_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
 )
-
-if LOCAL_SERVER:
-    # Pyrogram ko local Bot API server ki taraf point karna
-    client_kwargs["base_url"] = f"{LOCAL_API_URL}/bot"
-
-app = Client(**client_kwargs)
 
 
 # ---------------------- HELPERS ----------------------
