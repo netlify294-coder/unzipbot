@@ -55,6 +55,10 @@ app = Client(
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
+    # Ek file ko multiple parallel connections se download/upload karta hai
+    # — bade files (500MB-2GB) ke liye speed kaafi zyada badh jaati hai.
+    # VPS resources achhe hain (4+ core, 8GB+ RAM) to 8-12 tak try kar sakte ho.
+    max_concurrent_transmissions=8,
 )
 
 
@@ -124,10 +128,41 @@ async def zip_handler(client: Client, message: Message):
 
     try:
         # ------------- Step 1: Download -------------
-        await message.download(
+        downloaded_path = await message.download(
             file_name=str(zip_path),
             progress=lambda current, total: None,  # chahe to progress bar bana sakte hain
         )
+
+        if not downloaded_path or not Path(downloaded_path).exists():
+            await status.edit_text("❌ Download fail ho gaya — file save nahi hui. Dobara try karein.")
+            return
+
+        actual_size = Path(downloaded_path).stat().st_size
+        expected_size = doc.file_size or 0
+
+        if expected_size and actual_size != expected_size:
+            await status.edit_text(
+                f"❌ Download incomplete lagta hai "
+                f"({human_size(actual_size)} mila, {human_size(expected_size)} expected). "
+                f"Network issue ho sakta hai — dobara bhejein."
+            )
+            return
+
+        if not zipfile.is_zipfile(downloaded_path):
+            # Debug ke liye pehle kuch bytes dekh lete hain
+            with open(downloaded_path, "rb") as fcheck:
+                header = fcheck.read(8)
+            await status.edit_text(
+                f"❌ Ye ek valid zip file nahi hai.\n"
+                f"Downloaded size: {human_size(actual_size)}\n"
+                f"File header (hex): `{header.hex()}`\n\n"
+                f"Check karein ki file sach me .zip hai (rar/7z/tar renamed to "
+                f".zip to nahi hai), aur agar bahut badi file thi to dobara "
+                f"bhej ke try karein — kabhi kabhi bada upload beech me kat "
+                f"jata hai."
+            )
+            return
+
         await status.edit_text("📦 Download complete. Extracting...")
 
         # ------------- Step 2: Extract -------------
