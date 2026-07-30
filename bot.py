@@ -121,6 +121,17 @@ async def zip_handler(client: Client, message: Message):
     DOWNLOAD_DIR.mkdir(exist_ok=True)
     EXTRACT_DIR.mkdir(exist_ok=True)
 
+    # ------------- Disk space check (extract + zip dono ke liye ~3x jagah chahiye) -------------
+    needed = (doc.file_size or 0) * 3
+    free_space = shutil.disk_usage(DOWNLOAD_DIR).free
+    if needed and free_space < needed:
+        await message.reply_text(
+            f"❌ Disk me jagah kam hai. Chahiye ~{human_size(needed)}, "
+            f"available: {human_size(free_space)}. VPS disk clean karein "
+            f"ya storage badhayein."
+        )
+        return
+
     status = await message.reply_text(f"⬇️ Downloading `{file_name}` ({human_size(doc.file_size)})...")
 
     zip_path = DOWNLOAD_DIR / file_name
@@ -128,10 +139,15 @@ async def zip_handler(client: Client, message: Message):
 
     try:
         # ------------- Step 1: Download -------------
-        downloaded_path = await message.download(
-            file_name=str(zip_path),
-            progress=lambda current, total: None,  # chahe to progress bar bana sakte hain
-        )
+        try:
+            downloaded_path = await message.download(
+                file_name=str(zip_path),
+                progress=lambda current, total: None,  # chahe to progress bar bana sakte hain
+            )
+        except Exception as dl_error:
+            logger.exception("Download failed with exception")
+            await status.edit_text(f"❌ Download ke dauraan error aaya: {dl_error}")
+            return
 
         if not downloaded_path or not Path(downloaded_path).exists():
             await status.edit_text("❌ Download fail ho gaya — file save nahi hui. Dobara try karein.")
@@ -202,6 +218,24 @@ async def zip_handler(client: Client, message: Message):
                 )
                 uploaded += 1
             except Exception as e:
+                # Kai baar video/photo/audio ka metadata Telegram ko pasand
+                # nahi aata (jaise purani WhatsApp .mp4 files me moov atom
+                # missing) — is case me plain document ke roop me try karte hain.
+                if arg_name != "document":
+                    logger.warning(f"{arg_name} send failed for {f.name}, retrying as document: {e}")
+                    try:
+                        await safe_send(
+                            app.send_document,
+                            chat_id=CHANNEL_ID,
+                            document=str(f),
+                            caption=caption,
+                        )
+                        uploaded += 1
+                        continue
+                    except Exception as e2:
+                        logger.exception(f"Document fallback bhi fail hua for {f}: {e2}")
+                        await message.reply_text(f"⚠️ `{f.name}` upload nahi ho payi: {e2}")
+                        continue
                 logger.exception(f"Failed to upload {f}: {e}")
                 await message.reply_text(f"⚠️ `{f.name}` upload nahi ho payi: {e}")
 
